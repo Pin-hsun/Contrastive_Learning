@@ -46,7 +46,7 @@ class PainNet0(nn.Module):
         nn.Conv2d(FilNum[2],FilNum[3], 3, stride=1, padding=1, bias=True),
         nn.BatchNorm2d(FilNum[3]),
         nn.ReLU(),
-        nn.Conv2d(FilNum[3],FilNum[4], 3, stride=1, padding=1, bias=True),8
+        nn.Conv2d(FilNum[3],FilNum[4], 3, stride=1, padding=1, bias=True),
         nn.BatchNorm2d(FilNum[4]),
         nn.ReLU(),
         nn.Conv2d(FilNum[4],FilNum[5], 3, stride=1, padding=1, bias=True),
@@ -100,17 +100,18 @@ class MRPretrained(nn.Module):
             self.fmap_c = 512
 
         self.features = self.get_encoder(args_m)
+        self.fc = nn.Sequential(nn.Linear(2048, 2))
 
         # fusion part
-        self.simple0 = nn.Conv2d(self.fmap_c, 1, 1, 1, 0)
-
-        self.simplel = nn.Conv2d(self.fmap_c, 2, 1, 1, 0)
-        self.simplem = nn.Conv2d(self.fmap_c, 2, 1, 1, 0)
-
-        self.simplel2 = nn.Conv2d(self.fmap_c * 2, 2, 1, 1, 0)
-        self.simplem2 = nn.Conv2d(self.fmap_c * 2, 2, 1, 1, 0)
-
-        self.simple1 = nn.Conv2d(2, args_m.n_classes, 1, 1, 0)
+        # self.simple0 = nn.Conv2d(self.fmap_c, 1, 1, 1, 0)
+        #
+        # self.simplel = nn.Conv2d(self.fmap_c, 2, 1, 1, 0)
+        # self.simplem = nn.Conv2d(self.fmap_c, 2, 1, 1, 0)
+        #
+        # self.simplel2 = nn.Conv2d(self.fmap_c * 2, 2, 1, 1, 0)
+        # self.simplem2 = nn.Conv2d(self.fmap_c * 2, 2, 1, 1, 0)
+        #
+        # self.simple1 = nn.Conv2d(2, args_m.n_classes, 1, 1, 0)
 
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
         self.fuse = args_m.fuse
@@ -137,7 +138,8 @@ class MRPretrained(nn.Module):
         x = self.avg(x)  # (B*23, 512, 1, 1)
         x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 512, 1, 1)
         xcat = x.view(B, x.shape[1] * x.shape[2], x.shape[3], x.shape[4])  # (B, 23*512, 1, 1)
-        features = xcat
+        features = xcat.squeeze(features, 3)
+        features = torch.squeeze(features, 2)
         return features
 
     def max_features(self, x, B): # max-pooling across the slices
@@ -145,6 +147,8 @@ class MRPretrained(nn.Module):
         x = self.avg(x)  # (B*23, 512, 1, 1)
         x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 512, 1, 1)
         features, _ = torch.max(x, 1)  # (B, 512, 1, 1)
+        features = torch.squeeze(features, 3)
+        features = torch.squeeze(features, 2) #torch.Size([1, 2048])
         return features
 
     def forward(self, x1, x2):   # (B, 3, 224, 224, 23)
@@ -152,18 +156,21 @@ class MRPretrained(nn.Module):
         x1_features = None  # features we want to further analysis
         x2_features = None
         # reshape
-        x1, B = reshape(x1)
-        x2, _ = reshape(x2)
+        x1, B = self.reshape(x1)
+        x2, _ = self.reshape(x2)
         # fusion
         if self.fuse == 'cat':  # concatenate across the slices
-            x1_features = cat_features(x1)
-            x2_features = cat_features(x2)
+            x1_features = self.cat_features(x1, B)
+            x2_features = self.cat_features(x2, B)
         if self.fuse == 'max':  # max-pooling across the slices
-            x1_features = max_features(x1)
-            x2_features = max_features(x2)
-        return x1_features, x2_features
+            x1_features = self.max_features(x1, B)
+            x2_features = self.max_features(x2, B)
+        output1 = self.fc(x1_features)
+        output2 = self.fc(x2_features)
+
+        return output1, output2
 
 
 if __name__ == '__main__':
-    net = ResnetFeatures('resnet101', pretrained=True, fmap_c=2048)
+    net = MRPretrained('resnet101', pretrained=True, fmap_c=2048)
     net(torch.rand(1, 3, 256, 256))

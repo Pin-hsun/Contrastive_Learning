@@ -71,12 +71,14 @@ class MultiData(data.Dataset):
                 outputs, labels, filenames = self.subset[i].__getitem__(index)
                 outputs_all = outputs_all + outputs
                 filenames_all = filenames_all + filenames
-            return {'img': outputs_all, 'labels': labels, 'filenames': filenames_all}
+            # return {'img': outputs_all, 'labels': labels, 'filenames': filenames_all}
+            return outputs_all, labels, filenames_all
         else:
             for i in range(len(self.subset)):
                 outputs, labels = self.subset[i].__getitem__(index)
                 outputs_all = outputs_all + outputs
-            return {'img': outputs_all, 'labels': labels}
+            # return {'img': outputs_all, 'labels': labels}
+            return outputs_all, labels
 
 
 class PairedData3D(data.Dataset): # path = list of img path from csv
@@ -213,6 +215,6 @@ if __name__ == '__main__':
 
     train_set = MultiData(root=root, path=[img1_paths.tolist(), img2_paths.tolist()], labels=labels.tolist(),
                         opt=args, mode='train', filenames=True)
-    print(train_set.__len__())
 
-    print(len(train_set.__getitem__(1)['img']))
+    print(len(train_set.__getitem__(1)))
+    # print(train_set.__getitem__(1)[1])

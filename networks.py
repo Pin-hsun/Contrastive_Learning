@@ -18,9 +18,13 @@ class EmbeddingNet(nn.Module):
                                 )
 
     def forward(self, x):
+        # print(x.shape) [128, 1, 28, 28]
         output = self.convnet(x)
+        # print(output.shape)[128, 64, 4, 4]
         output = output.view(output.size()[0], -1)
+        # print(output.shape) [128, 1024]
         output = self.fc(output)
+        # print(output.shape) [128, 2]
         return output
 
     def get_embedding(self, x):
