@@ -107,6 +107,9 @@ def extract_embeddings(dataloader, model):
             k += len(images)
     return embeddings, labels
 
+# environment file
+load_dotenv('env/.env')
+
 # Read json file and update it
 # with open('env/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
 #     t_args = argparse.Namespace()
@@ -116,12 +119,8 @@ def extract_embeddings(dataloader, model):
 
 # Finalize Arguments and create files for logging
 args = parser.parse_args()
+
 # args = prepare_log(args)
-# environment file
-if args.env is not None:
-    load_dotenv('env/.' + args.env)
-else:
-    load_dotenv('env/.env')
 
 # Set up the network and training parameters
 margin = 1.

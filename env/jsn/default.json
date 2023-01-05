@@ -1,0 +1,11 @@
+{
+    "train":
+      {
+        "env": null,
+        "dataset": "siamese",
+        "prj": "default",
+        "preload": true,
+        "resize": 0,
+        "cropsize": 256
+      }
+}

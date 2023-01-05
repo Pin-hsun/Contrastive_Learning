@@ -209,12 +209,11 @@ if __name__ == '__main__':
     parser.add_argument('--n01', action='store_true', dest='n01', default=False)
     args = parser.parse_args()
 
-    csv_path = 'LRpair_path.csv'
-    root = '/media/ExtHDD02/OAIDataBase/OAI_pain/full/'
+    csv_path = 'data/test.csv'
+    root = '/media/ExtHDD02/OAIDataBase/'
     img1_paths, img2_paths, labels = read_paired_path(csv_path)
-
     train_set = MultiData(root=root, path=[img1_paths.tolist(), img2_paths.tolist()], labels=labels.tolist(),
                         opt=args, mode='train', filenames=True)
 
-    print(len(train_set.__getitem__(1)))
-    # print(train_set.__getitem__(1)[1])
+    # print(len(train_set.__getitem__(1)))
+    print(train_set.__getitem__(1)[0][0].shape)
