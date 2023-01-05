@@ -100,7 +100,8 @@ class MRPretrained(nn.Module):
             self.fmap_c = 512
 
         self.features = self.get_encoder(args_m)
-        self.fc = nn.Sequential(nn.Linear(2048, 2))
+        # self.fc = nn.Sequential(nn.Linear(2048, 2))
+        self.fc = nn.Sequential(nn.Linear(self.fmap_c*23, 2))
 
         # fusion part
         # self.simple0 = nn.Conv2d(self.fmap_c, 1, 1, 1, 0)
@@ -118,7 +119,7 @@ class MRPretrained(nn.Module):
 
     def get_encoder(self, args_m):
         if args_m.backbone == 'pain':
-            eatures = PainNet0().features
+            features = PainNet0().features
         elif args_m.backbone.startswith('resnet'):
             features = ResnetFeatures(args_m.backbone, pretrained=args_m.pretrained, fmap_c=self.fmap_c)
         elif args_m.backbone == 'SqueezeNet':
@@ -128,6 +129,7 @@ class MRPretrained(nn.Module):
         return features
 
     def reshape(self, x):
+        # x = torch.unsqueeze(x, 0) # torch.Size([1, 3, 256, 256, 23])
         B = x.shape[0]
         x = x.permute(0, 4, 1, 2, 3)  # (B, 23, 3, 224, 224)
         x = x.reshape(B * x.shape[1], x.shape[2], x.shape[3], x.shape[4])  # (B*23, 3, 224, 224)
@@ -138,17 +140,24 @@ class MRPretrained(nn.Module):
         x = self.avg(x)  # (B*23, 512, 1, 1)
         x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 512, 1, 1)
         xcat = x.view(B, x.shape[1] * x.shape[2], x.shape[3], x.shape[4])  # (B, 23*512, 1, 1)
-        features = xcat.squeeze(features, 3)
+        # features = xcat.squeeze(features, 3)
+        features = torch.squeeze(xcat, 3)
         features = torch.squeeze(features, 2)
         return features
 
     def max_features(self, x, B): # max-pooling across the slices
         x = self.features(x)  # (B*23, 512, 7, 7)
+        print(x.shape)
         x = self.avg(x)  # (B*23, 512, 1, 1)
+        print(x.shape)
         x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 512, 1, 1)
+        print(x.shape)
         features, _ = torch.max(x, 1)  # (B, 512, 1, 1)
+        print(features.shape)
         features = torch.squeeze(features, 3)
+        print(features.shape)
         features = torch.squeeze(features, 2) #torch.Size([1, 2048])
+        print(features.shape)
         return features
 
     def forward(self, x1, x2):   # (B, 3, 224, 224, 23)
@@ -172,5 +181,17 @@ class MRPretrained(nn.Module):
 
 
 if __name__ == '__main__':
-    net = MRPretrained('resnet101', pretrained=True, fmap_c=2048)
-    net(torch.rand(1, 3, 256, 256))
+    # net = MRPretrained('resnet101', pretrained=True, fmap_c=2048)
+    import argparse
+
+    # Arguments
+    parser = argparse.ArgumentParser()  # add_help=False)
+    parser.add_argument('--backbone',default='alexnet', type=str)
+    parser.add_argument('--pretrained', action='store_true', default=False)
+    parser.add_argument('--fuse', type=str, default='cat', help='cat or max')
+    parser.add_argument('--n_classes', type=int, default=2)
+
+    args_m = parser.parse_args()
+    net = MRPretrained(args_m= args_m)
+    out = net.forward(torch.rand(1, 3, 256, 256, 23), torch.rand(1, 3, 256, 256, 23))
+    print(out)

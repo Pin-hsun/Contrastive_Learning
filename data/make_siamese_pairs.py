@@ -1,9 +1,13 @@
 import pandas as pd
-
+#pos=1, neg=0
+"""
+Contrastive loss
+Takes embeddings of two samples and a target label == 1 if samples are from the same class and label == 0 otherwise
+"""
 pos = pd.read_csv('/home/gloria/projects/siamese-triplet/data/womac1min0base.csv', index_col=None)
 neg = pd.read_csv('/home/gloria/projects/siamese-triplet/data/womac5min0base.csv', index_col=None)
-pos['label'] = 'pos'
-neg['label'] = 'neg'
+pos['label'] = 1
+neg['label'] = 0
 pos = pos[['ID', 'label']].drop_duplicates()
 neg = neg[['ID', 'label']].drop_duplicates()
 

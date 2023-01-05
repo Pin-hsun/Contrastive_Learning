@@ -46,8 +46,7 @@ def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, met
     total_loss = 0
 
     for batch_idx, (data, target) in enumerate(train_loader):
-        print(data, target)
-        target = target[0] if len(target) > 0 else None
+        target = torch.tensor(target) if len(str(target)) > 0 else None
         if not type(data) in (tuple, list):
             data = (data,)
         if cuda:
@@ -57,7 +56,6 @@ def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, met
 
         optimizer.zero_grad()
         outputs = model(*data) #pairs of B*[,]
-        # print(outputs[0])
         if type(outputs) not in (tuple, list):
             outputs = (outputs,)
 

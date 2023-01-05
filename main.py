@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 import argparse
 import json
 import os
+import time
+from tqdm import tqdm
 from dotenv import load_dotenv
 
 from Net3D2D import MRPretrained
@@ -34,10 +36,10 @@ parser = argparse.ArgumentParser()#add_help=False)
 parser.add_argument('--jsn', type=str, default='default', help='name of ini file')
 parser.add_argument('--env', type=str, default=None, help='environment_to_use')
 # Project name
-parser.add_argument('--prj', type=str, help='name of the project')
+parser.add_argument('--prj', type=str, help='name of the project', default='test')
 parser.add_argument('--models', dest='models', type=str, help='use which models')
 # Data
-parser.add_argument('--dataset', type=str)
+parser.add_argument('--dataset', type=str, default='default')
 parser.add_argument('--preload', action='store_true')
 parser.add_argument('--resize', type=int, default=0, help='size for resizing before cropping, 0 for no resizing')
 parser.add_argument('--cropsize', type=int, default=256, help='size for cropping, 0 for no crop')
@@ -49,13 +51,9 @@ parser.add_argument('--n01', action='store_true', dest='n01', default=False)
 parser.add_argument('--backbone', type=str, default='resnet50', help='model backbone')
 parser.add_argument('--pretrained', type=str, default=True, help='use pretrained model')
 parser.add_argument('--n_classes', type=int, default=2, help='class number')
-parser.add_argument('--norm', type=str, help='normalization in generator')
-parser.add_argument('--input_nc', type=int, help='input image channels')
-parser.add_argument('--output_nc', type=int, help='output image channels')
-parser.add_argument('--cmb', dest='cmb', help='method to combine the outputs to the original')
 parser.add_argument('--fuse', type=str, default='cat', help='cat or max across the 2D slices')
 # Training
-parser.add_argument('-b', dest='batch_size', type=int, help='training batch size')
+parser.add_argument('-b', dest='batch_size', type=int, help='training batch size',default=2)
 parser.add_argument('--n_epochs', type=int, help='# of iter at starting learning rate')
 parser.add_argument('--lr', type=float, help='initial learning rate f -or adam')
 parser.add_argument('--beta1', type=float, help='beta1 for adam. default=0.5')
@@ -78,17 +76,19 @@ def prepare_log(args):
     shutil.copy('models/' + args.models + '.py', os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + args.models + '.py')
     return args
 
-def plot_embeddings(embeddings, targets, xlim=None, ylim=None):
+def plot_embeddings(embeddings, targets, dest, xlim=None, ylim=None):
     plt.figure(figsize=(2,2))
     for i in range(2):
-        inds = np.where(targets==i)
-        print(inds)
-        plt.scatter(embeddings[inds,0], embeddings[inds,1], alpha=0.5, color=colors[i])
+        # inds = np.where(targets==i)[0]
+        # print(inds)
+        # plt.scatter(embeddings[inds,0], embeddings[inds,1], alpha=0.5, color=colors[i])
+        plt.scatter(embeddings[0], embeddings[1], alpha=0.5, color=colors[i])
     if xlim:
         plt.xlim(xlim[0], xlim[1])
     if ylim:
         plt.ylim(ylim[0], ylim[1])
     plt.legend(classes)
+    plt.savefig(dest)
 
 def extract_embeddings(dataloader, model):
     with torch.no_grad():
@@ -101,9 +101,8 @@ def extract_embeddings(dataloader, model):
                 images = [img.cuda() for img in images]
             out = [x.cpu().numpy() for x in model.forward(*images)]
             embeddings += out
-            # print(embeddings)
-            labels.append(target.numpy()[0])
-            # print(labels)
+            for i in target.numpy():
+                labels.append(i)
             k += len(images)
     return embeddings, labels
 
@@ -128,16 +127,16 @@ log_interval = 100
 args.lr = 1e-2
 args.n_epochs = 3
 
-csv_path = 'LRpair_path.csv'
-root = '/media/ExtHDD02/OAIDataBase/OAI_pain/full/'
+csv_path = 'data/test.csv'
+root = '/media/ExtHDD02/OAIDataBase/'
 img1_paths, img2_paths, labels = read_paired_path(csv_path)
 
-
 train_set = MultiData(root=root, path=[img1_paths.tolist(), img2_paths.tolist()], labels=labels.tolist(),
-                    opt=args, mode='train', filenames=False, index=range(2))
+                    opt=args, mode='train', filenames=False, index=range(7))
 test_set = MultiData(root=root, path=[img1_paths.tolist(), img2_paths.tolist()], labels=labels.tolist(),
-                    opt=args, mode='test', filenames=False, index=range(2,3))
-# print('train:', train_set.__len__()) #467
+                    opt=args, mode='test', filenames=False, index=range(7,10))
+print('train set:', train_set.__len__()) #467
+
 train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True, pin_memory=True)
 test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
 
@@ -172,6 +171,8 @@ scheduler = lr_scheduler.StepLR(optimizer, 8, gamma=0.1, last_epoch=-1)
 if __name__ ==  '__main__':
     fit(train_loader, test_loader, model, loss_fn, optimizer, scheduler, args.n_epochs, cuda, log_interval)
     train_embeddings_baseline, train_labels_baseline = extract_embeddings(train_loader, model)
-    plot_embeddings(train_embeddings_baseline, train_labels_baseline)
+    plot_embeddings(train_embeddings_baseline, train_labels_baseline, dest='out/train_embedding.png')
     val_embeddings_baseline, val_labels_baseline = extract_embeddings(test_loader, model)
-    plot_embeddings(val_embeddings_baseline, val_labels_baseline)
+    plot_embeddings(val_embeddings_baseline, val_labels_baseline, dest='out/test_embedding.png')
+
+    # CUDA_VISIBLE_DEVICES=0 python main.py --dataset siamese --prj 0105test --preload -b 2
