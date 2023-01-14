@@ -96,12 +96,13 @@ Part 2: Evaluation of Euclidean distance disease severity of all test set images
 '''
 
 # read test set path
-paired_csv = pd.read_csv('data/womac_pairs.csv')
+paired_csv = pd.read_csv('data/womac_pairs_score.csv')
 train_index, test_index = train_test_split(list(range(len(paired_csv))), test_size=0.3, random_state=42)
 test = paired_csv.iloc[test_index]
+test = test[(test['V00WOMKPL'] >= 1) | (test['V00WOMKPR'] >= 1)] #don't use knee without pain
 test_img = test['path1'].tolist() + test['path2'].tolist()
-labels = test['painL'].tolist() + test['painR'].tolist()[:10]
-test_img = [root + i for i in test_img][:10]
+labels = test['V00WOMKPL'].tolist() + test['V00WOMKPR'].tolist()
+test_img = [root + i for i in test_img]
 
 # anchor images from the random 10 images
 random10 = pd.read_csv('data/anchor.csv')
@@ -109,9 +110,12 @@ img_anchor = random10['path'].tolist()
 img_anchor = [root + i for i in img_anchor]
 
 euclidean_distance_record = []
+grade_record = [] #ground truth womac score
+image_path_record = []
 for j in range(len(test_img)):
     test = [test_img[j]]*10
-    test_set = MultiData(root=root, path=[test, img_anchor], labels=labels, opt=args, mode='test', filenames=False)
+    label = [labels[j]]*10
+    test_set = MultiData(root=root, path=[test, img_anchor], labels=label, opt=args, mode='test', filenames=False)
     save_euclidean_distance = []
     for i in range(10):
         target_img = torch.unsqueeze(test_set.__getitem__(i)[0][0], 0).cuda()
@@ -120,46 +124,22 @@ for j in range(len(test_img)):
         euclidean_distance = F.pairwise_distance(output1, output2).item()
         save_euclidean_distance.append(euclidean_distance)
     euclidean_distance_record.append(statistics.median(save_euclidean_distance))
-
-
-image_path_record = []
-euclidean_distance_record = []
-grade_record = []
-
-for i in range(len(testing_table_byimage)):
-    tmp = testing_table_byimage.iloc[i]
-    image_path = image_dir + tmp['imageName'][:-3] + 'png'
-
-    try:
-        img_comparison = img_processing(Image.open(image_path))
-        image_path_record.append(image_path)
-
-        save_euclidean_distance = []
-        for j in range(len(img_anchor)):
-            output1, output2 = net.forward(img_anchor[j], img_comparison)
-            euclidean_distance = F.pairwise_distance(output1, output2)
-            save_euclidean_distance.append(euclidean_distance.item())
-
-        # take average (or median) euclidean distance compared to the the pool of normals
-        # euclidean_distance_record.append(statistics.mean(save_euclidean_distance))
-        euclidean_distance_record.append(statistics.median(save_euclidean_distance))
-
-        # true ROP grade record
-        grade_record.append(tmp['Ground truth'])
-
-        print(str(i) + 'completed')
-    except:
-        print(str(i) + 'image is missing from data set')
+    grade_record.append(labels[j])
+    image_path_record.append(test_img[j].split('/')[-1])
+print('distance calculation completed')
+# print(image_path_record)
+# print(womac_record)
+# print(euclidean_distance_record)
 
 pooled_normal_test = pd.DataFrame({'image_path': image_path_record,
                                    'euclidean_distance': euclidean_distance_record,
                                    'grade_record': grade_record,
                                    })
 
-pooled_normal_test.to_csv('data/pooled_normal_test.csv')
+pooled_normal_test.to_csv('out/' + args.prj +'/pooled_normal_test.csv')
 
 ### visualization ###
-pooled_normal_test = pd.read_csv('data/pooled_normal_test.csv')
+# pooled_normal_test = pd.read_csv('/pooled_normal_test.csv')
 
 # boxplot
 plt.figure()
@@ -167,8 +147,7 @@ plt.tight_layout()
 plt.gcf().subplots_adjust(bottom=0.15, left=0.15)
 plt.tick_params(axis='both', which='major', labelsize=15)
 sns.set(style="white")
-ax = sns.boxplot(x="grade_record", y="euclidean_distance", data=pooled_normal_test, color='white', showfliers=False,
-                 order=['No', 'Pre-Plus', 'Plus'])
+ax = sns.boxplot(x="grade_record", y="euclidean_distance", data=pooled_normal_test, color='white', showfliers=False)
 
 for i, box in enumerate(ax.artists):
     box.set_edgecolor('black')
@@ -177,16 +156,15 @@ for i, box in enumerate(ax.artists):
     for j in range(5 * i, 5 * (i + 1)):
         ax.lines[j].set_color('black')
 
-ax = sns.swarmplot(x="grade_record", y="euclidean_distance", data=pooled_normal_test, color="grey", size=3,
-                   order=['No', 'Pre-Plus', 'Plus'])
+ax = sns.swarmplot(x="grade_record", y="euclidean_distance", data=pooled_normal_test, color="grey", size=3)
 plt.xlabel('Plus Disease Classification', fontsize=15)
 plt.ylabel('Median Euclidean Distance', fontsize=15)
-plt.savefig(output_dir + "/PlusDisease_vs_EuclideanDist_boxplot_pooled_analysis_median.png")
+plt.savefig('out/' + args.prj + "/EuclideanDist_boxplot_pooled_analysis_median.png")
 plt.close()
 
 # Spearman rank correlation
-pooled_normal_test_.loc[pooled_normal_test['grade_record'] == 'No', 'grade_record'] = 0
-pooled_normal_test_.loc[pooled_normal_test['grade_record'] == 'Pre-Plus', 'grade_record'] = 1
-pooled_normal_test_.loc[pooled_normal_test['grade_record'] == 'Plus', 'grade_record'] = 2
-
-pooled_normal_test_[['euclidean_distance', 'grade_record']].corr(method="spearman")
+# pooled_normal_test.loc[pooled_normal_test['grade_record'] == 'No', 'grade_record'] = 0
+# pooled_normal_test.loc[pooled_normal_test['grade_record'] == 'Pre-Plus', 'grade_record'] = 1
+# pooled_normal_test.loc[pooled_normal_test['grade_record'] == 'Plus', 'grade_record'] = 2
+#
+# pooled_normal_test_[['euclidean_distance', 'grade_record']].corr(method="spearman")

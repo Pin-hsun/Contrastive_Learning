@@ -17,8 +17,10 @@ pos['painR'] = np.where(pos['V00WOMKPR'] >= 5, 1, 0)
 neg['painL'] = np.where(neg['V00WOMKPL'] >= 5, 1, 0)
 neg['painR'] = np.where(neg['V00WOMKPR'] >= 5, 1, 0)
 
-pos = pos[['ID', 'label','painL','painR']].drop_duplicates()
-neg = neg[['ID', 'label','painL','painR']].drop_duplicates()
+# pos = pos[['ID', 'label','painL','painR']].drop_duplicates()
+# neg = neg[['ID', 'label','painL','painR']].drop_duplicates()
+pos = pos[['ID', 'label','V00WOMKPL','V00WOMKPR']].drop_duplicates()
+neg = neg[['ID', 'label','V00WOMKPL','V00WOMKPR']].drop_duplicates()
 
 pos['path1'] = 'pain_siamese_pos/Processed/TSE/'+pos['ID'].astype(str)+'_00_L'
 pos['path2'] = 'pain_siamese_pos/Processed/TSE/'+pos['ID'].astype(str)+'_00_R'
@@ -26,4 +28,4 @@ neg['path1'] = 'pain_siamese_neg/Processed/TSE/'+neg['ID'].astype(str)+'_00_L'
 neg['path2'] = 'pain_siamese_neg/Processed/TSE/'+neg['ID'].astype(str)+'_00_R'
 all = pd.concat([pos, neg], ignore_index=True)
 all = all.sort_values(by='ID')
-all.to_csv('womac_pairs.csv',index=False)
+all.to_csv('/home/gloria/projects/siamese-triplet/data/womac_pairs_score.csv',index=False)
