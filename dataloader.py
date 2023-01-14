@@ -32,10 +32,11 @@ def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')
 
 def read_paired_path(csv_path):
     df = pd.read_csv(csv_path)
-    img1_path = df['path1']
-    img2_path = df['path2']
-    label = df['label']
-    return img1_path, img2_path, label
+    img1_path = df['path1'].tolist()
+    img2_path = df['path2'].tolist()
+    # labels = df[['label', 'painL', 'painR']]
+    labels = list(zip(df.label, df.painL, df.painR))
+    return img1_path, img2_path, labels
 
 class MultiData(data.Dataset):
     """
@@ -50,6 +51,7 @@ class MultiData(data.Dataset):
         self.subset = []
 
         if self.opt.load3d:
+            print('load3D...')
             self.subset.append(PairedData3D(root=root, path1=paired_path[0], path2=paired_path[1],
                                             opt=opt, mode=mode, labels=labels, transforms=transforms, filenames=filenames, index=index))
         else:
@@ -95,10 +97,12 @@ class PairedData3D(data.Dataset): # path = list of img path from csv
         self.pair1['path'] = path1
         self.pair1['all_path'] = [glob.glob(os.path.join(root, x) + '*') for x in path1]
         self.pair1['images'] = sorted([x.split('/')[-1] for x in list(itertools.chain(*self.pair1['all_path']))])
+        self.pair1['pain'] = labels[1]
         self.pair2 = dict()
         self.pair2['path'] = path2
         self.pair2['all_path'] = [glob.glob(os.path.join(root, x) + '*') for x in path2]
         self.pair2['images'] = sorted([x.split('/')[-1] for x in list(itertools.chain(*self.pair2['all_path']))])
+        self.pair2['pain'] = labels[2]
 
         if self.opt.resize == 0:
             self.resize = np.array(Image.open(self.pair1['all_path'][0][0])).shape[1]
@@ -206,14 +210,15 @@ if __name__ == '__main__':
     parser.add_argument('--gray', action='store_true', dest='gray', default=False, help='dont copy img to 3 channel')
     parser.add_argument('--load3d', action='store_true', dest='load3d', default=True, help='do 3D')
     parser.add_argument('--trd', type=float, default=0)
-    parser.add_argument('--n01', action='store_true', dest='n01', default=False)
+    parser.add_argument('--n01', action='store_true', dest='n01', default=True)
     args = parser.parse_args()
 
     csv_path = 'data/test.csv'
     root = '/media/ExtHDD02/OAIDataBase/'
     img1_paths, img2_paths, labels = read_paired_path(csv_path)
-    train_set = MultiData(root=root, path=[img1_paths.tolist(), img2_paths.tolist()], labels=labels.tolist(),
-                        opt=args, mode='train', filenames=True)
+
+    train_set = MultiData(root=root, path=[img1_paths, img2_paths], labels=labels,
+                        opt=args, mode='train', filenames=False)
 
     # print(len(train_set.__getitem__(1)))
-    print(train_set.__getitem__(1)[0][0].shape)
+    print(train_set.__getitem__(1)[1])

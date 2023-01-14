@@ -2,8 +2,8 @@ import torch
 import numpy as np
 
 
-def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs, cuda, log_interval, metrics=[],
-        start_epoch=0):
+def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs, cuda, log_interval, checkpoints,
+        metrics=[], start_epoch=0):
     """
     Loaders, model, loss function and metrics should work together for a given task,
     i.e. The model should be able to process data output of loaders,
@@ -20,7 +20,8 @@ def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs
         scheduler.step()
 
         # Train stage
-        train_loss, metrics = train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, metrics)
+        train_loss, metrics = train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, metrics,
+                                          checkpoints, epoch)
 
         message = 'Epoch: {}/{}. Train set: Average loss: {:.4f}'.format(epoch + 1, n_epochs, train_loss)
         for metric in metrics:
@@ -37,7 +38,7 @@ def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs
         print(message)
 
 
-def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, metrics):
+def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, metrics, checkpoints, epoch):
     for metric in metrics:
         metric.reset()
 
@@ -46,7 +47,7 @@ def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, met
     total_loss = 0
 
     for batch_idx, (data, target) in enumerate(train_loader):
-        target = torch.tensor(target) if len(str(target)) > 0 else None
+        target = torch.tensor(target[0]) if len(str(target)) > 0 else None #get group label only
         if not type(data) in (tuple, list):
             data = (data,)
         if cuda:
@@ -84,7 +85,8 @@ def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, met
 
             print(message)
             losses = []
-
+    if epoch % 2 == 0:
+        torch.save(model, checkpoints + '/epoch' + str(epoch) +'.pth')
     total_loss /= (batch_idx + 1)
     return total_loss, metrics
 
@@ -96,7 +98,7 @@ def test_epoch(val_loader, model, loss_fn, cuda, metrics):
         model.eval()
         val_loss = 0
         for batch_idx, (data, target) in enumerate(val_loader):
-            target = target if len(target) > 0 else None
+            target = target[0] if len(target) > 0 else None #get group label only
             if not type(data) in (tuple, list):
                 data = (data,)
             if cuda:
