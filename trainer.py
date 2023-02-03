@@ -1,9 +1,9 @@
 import torch
 import numpy as np
-
+from torch.utils.tensorboard import SummaryWriter
 
 def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs, cuda, log_interval, checkpoints,
-        metrics=[], start_epoch=0):
+        prj, metrics=[], start_epoch=0):
     """
     Loaders, model, loss function and metrics should work together for a given task,
     i.e. The model should be able to process data output of loaders,
@@ -13,6 +13,9 @@ def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs
     Siamese network: Siamese loader, siamese model, contrastive loss
     Online triplet learning: batch loader, embedding model, online triplet loss
     """
+
+    writer = SummaryWriter('./runs/'+ prj)
+
     for epoch in range(0, start_epoch):
         scheduler.step()
 
@@ -37,6 +40,8 @@ def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs
 
         print(message)
 
+        writer.add_scalar('Loss/train', train_loss, epoch)
+        writer.add_scalar('Loss/test', val_loss, epoch)
 
 def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, metrics, checkpoints, epoch):
     for metric in metrics:
@@ -47,14 +52,13 @@ def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, met
     total_loss = 0
 
     for batch_idx, (data, target) in enumerate(train_loader):
-        target = torch.tensor(target[0]) if len(str(target)) > 0 else None #get group label only
+        target = torch.tensor(target[0]) if len(str(target)) > 1 else None #get group label only
         if not type(data) in (tuple, list):
             data = (data,)
         if cuda:
             data = tuple(d.cuda() for d in data)
             if target is not None:
                 target = target.cuda()
-
         optimizer.zero_grad()
         outputs = model(*data) #pairs of B*[,]
         if type(outputs) not in (tuple, list):
@@ -85,7 +89,7 @@ def train_epoch(train_loader, model, loss_fn, optimizer, cuda, log_interval, met
 
             print(message)
             losses = []
-    if epoch % 2 == 0:
+    if epoch % 1 == 0:
         torch.save(model, checkpoints + '/epoch' + str(epoch) +'.pth')
     total_loss /= (batch_idx + 1)
     return total_loss, metrics
@@ -98,7 +102,7 @@ def test_epoch(val_loader, model, loss_fn, cuda, metrics):
         model.eval()
         val_loss = 0
         for batch_idx, (data, target) in enumerate(val_loader):
-            target = target[0] if len(target) > 0 else None #get group label only
+            target = target[0] if len(target) > 1 else None #get group label only
             if not type(data) in (tuple, list):
                 data = (data,)
             if cuda:

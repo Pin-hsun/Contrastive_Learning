@@ -93,7 +93,6 @@ class SiameseNetwork101(nn.Module):
         super(SiameseNetwork101, self).__init__()
         # note that resnet101 requires 3 input channels, will repeat grayscale image x3
         self.cnn1 = models.resnet101(pretrained=True)
-        # self.cnn1.avgpool = nn.Identity()
         self.cnn1.fc = nn.Linear(2048, 3) # mapping input image to a 3 node output
     def forward(self, x):
         x = self.cnn1(x)
@@ -117,9 +116,9 @@ class MRPretrained(nn.Module):
 
         self.features = self.get_encoder(args_m)
         if args_m.fuse == 'cat':
-            self.fc = nn.Sequential(nn.Linear(self.fmap_c*23, 2))
+            self.fc = nn.Sequential(nn.Linear(self.fmap_c*23, 3))
         if args_m.fuse == 'max':
-            self.fc = nn.Sequential(nn.Linear(self.fmap_c, 2))
+            self.fc = nn.Sequential(nn.Linear(self.fmap_c, 3))
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
         self.fuse = args_m.fuse
         self.fc_use = args_m.fc_use
@@ -144,10 +143,10 @@ class MRPretrained(nn.Module):
         return x, B
 
     def cat_features(self, x, B): # concatenate across the slices
-        x = self.features(x)  # (B*23, 512, 7, 7)
+        x = self.features(x)  # (B*23, 3, 1, 1)
         x = self.avg(x)  # (B*23, 512, 1, 1)
-        x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 512, 1, 1)
-        xcat = x.view(B, x.shape[1] * x.shape[2], x.shape[3], x.shape[4])  # (B, 23*512, 1, 1)
+        x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 3, 1, 1)
+        xcat = x.view(B, x.shape[1] * x.shape[2], x.shape[3], x.shape[4])  # (B, 23*3, 1, 1)
         features = torch.squeeze(xcat, 3)
         features = torch.squeeze(features, 2)
         return features
@@ -156,7 +155,7 @@ class MRPretrained(nn.Module):
         x = self.features(x)  # (B*23, 512, 7, 7)
         x = self.avg(x)  # (B*23, 512, 1, 1)
         x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 512, 1, 1)
-        features, _ = torch.max(x, 1)  # (B, 512, 1, 1)
+        features, _ = torch.max(x, 1)  # (B, 3, 1, 1)
         features = torch.squeeze(features, 3)
         features = torch.squeeze(features, 2) #torch.Size([1, 2048])
         return features

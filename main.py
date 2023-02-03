@@ -125,22 +125,24 @@ print(args)
 
 # read csv file to get img path
 if args.part_data:
-    csv_path = 'data/test.csv'
+    train_csv = 'data/part_train.csv'
+    test_csv = 'data/part_test.csv'
 else:
-    csv_path = 'data/womac_pairs.csv'
+    train_csv = 'data/womac_pairs05_train.csv'
+    test_csv = 'data/womac_pairs05_test.csv'
 root = os.environ.get('DATASET')
-img1_paths, img2_paths, labels = read_paired_path(csv_path)
-train_index, test_index = train_test_split(list(range(len(labels))), test_size=0.3, random_state=42)
-test = pd.read_csv(csv_path).iloc[test_index]
-test.to_csv()
+img1_train, img2_train, labels_train = read_paired_path(train_csv)
+img1_test, img2_test, labels_test = read_paired_path(test_csv)
+# train_index, test_index = train_test_split(list(range(len(labels))), test_size=0.3, random_state=42)
+# test = pd.read_csv(csv_path).iloc[test_index]
+# test.to_csv()
 
-train_set = MultiData(root=root, path=[img1_paths, img2_paths], labels=labels,
-                    opt=args, mode='train', filenames=False, index=train_index)
-test_set = MultiData(root=root, path=[img1_paths, img2_paths], labels=labels,
-                    opt=args, mode='test', filenames=False, index=test_index)
+train_set = MultiData(root=root, path=[img1_train, img2_train], labels=labels_train,
+                    opt=args, mode='train', filenames=False)
+test_set = MultiData(root=root, path=[img1_test, img2_test], labels=labels_test,
+                    opt=args, mode='test', filenames=False)
 print('train set:', train_set.__len__()) #467
 print('test set:', test_set.__len__())
-print(test_set)
 
 train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True, pin_memory=True)
 test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
@@ -177,12 +179,12 @@ scheduler = lr_scheduler.StepLR(optimizer, 8, gamma=0.1, last_epoch=-1)
 # trainer.fit(model, train_loader, test_loader)  # test loader not used during training
 
 if __name__ ==  '__main__':
-    fit(train_loader, test_loader, model, loss_fn, optimizer, scheduler, args.n_epochs, cuda, args.log_interval, checkpoints)
+    fit(train_loader, test_loader, model, loss_fn, optimizer, scheduler, args.n_epochs, cuda, args.log_interval, checkpoints, args.prj)
     # plot embedding outcomes
-    os.makedirs(os.path.join('out', args.prj), exist_ok=True)
-    train_embeddings_baseline, train_labels_baseline = extract_embeddings(train_loader, model, args.fc_use)
-    plot_embeddings(train_embeddings_baseline, train_labels_baseline, dest=os.path.join('out', args.prj, 'train_embedding.png'))
-    val_embeddings_baseline, val_labels_baseline = extract_embeddings(test_loader, model, args.fc_use)
-    plot_embeddings(val_embeddings_baseline, val_labels_baseline, dest=os.path.join('out', args.prj, 'test_embedding.png'))
+    # os.makedirs(os.path.join('out', args.prj), exist_ok=True)
+    # train_embeddings_baseline, train_labels_baseline = extract_embeddings(train_loader, model, args.fc_use)
+    # plot_embeddings(train_embeddings_baseline, train_labels_baseline, dest=os.path.join('out', args.prj, 'train_embedding.png'))
+    # val_embeddings_baseline, val_labels_baseline = extract_embeddings(test_loader, model, args.fc_use)
+    # plot_embeddings(val_embeddings_baseline, val_labels_baseline, dest=os.path.join('out', args.prj, 'test_embedding.png'))
 
-    # CUDA_VISIBLE_DEVICES=0 python main.py --dataset siamese --prj 0105test --preload -b 1
+    # CUDA_VISIBLE_DEVICES=1 python main.py --prj 0117_cat_lre5 --lr 0.00001

@@ -166,7 +166,7 @@ class PairedData3D(data.Dataset): # path = list of img path from csv
         if self.index is not None:
             return len(self.index)
         else:
-            return len(self.images)
+            return len(self.pair1['path'])
 
     def __getitem__(self, idx):
         if self.index is not None:

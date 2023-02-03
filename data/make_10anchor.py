@@ -3,12 +3,12 @@ import pandas as pd
 import numpy as np
 import random
 
-pos = pd.read_csv('/home/gloria/projects/siamese-triplet/data/womac1min0base.csv', index_col=None)
-neg = pd.read_csv('/home/gloria/projects/siamese-triplet/data/womac5min0base.csv', index_col=None)
-pos = pos.iloc[len(neg):] #only use left pos pairs as anchor
-pos = pos[(pos['V00WOMKPR']==0) &( pos['V00WOMKPL']==0)] #only choose both knee womac = 0
-pos10 = pos.sample(10)
-pos10['side'] = pd.Series(random.choices(['R', 'L'], weights=[1, 1], k=len(pos10))).values
-pos10['path'] = 'pain_siamese_pos/Processed/TSE/'+pos10['ID'].astype(str)+'_00_'+pos10['side']
-pos10 = pos10[['ID','path']]
-pos10.to_csv('/home/gloria/projects/siamese-triplet/data/anchor.csv')
+pos = pd.read_csv('/home/gloria/projects/siamese-triplet/data/womac3up_ver00.csv', index_col=None)
+neg = pd.read_csv('/home/gloria/projects/siamese-triplet/data/womac0down_ver00.csv', index_col=None)
+neg = neg.iloc[len(pos):] #only use left neg pairs as anchor
+neg = neg[(neg['V00WOMKPR']==0) &(neg['V00WOMKPL']==0)] #only choose both knee womac = 0
+neg10 = neg.sample(10)
+neg10['side'] = pd.Series(random.choices(['R', 'L'], weights=[1, 1], k=len(neg10))).values
+neg10['path'] = 'pain_siamese_pos/Processed/TSE/'+neg10['ID'].astype(str)+'_00_'+neg10['side']
+neg10 = neg10[['ID','path']]
+neg10.to_csv('/home/gloria/projects/siamese-triplet/data/anchor.csv')
