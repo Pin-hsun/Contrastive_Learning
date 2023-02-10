@@ -131,7 +131,7 @@ if args.distance:
     test_other = test[test['womac'] != 0]
     print('womac0:',len(test_0))
     print('others:',len(test_other))
-    test = pd.concat([test_0.sample(n=10, random_state=42), test_other.sample(n=60, random_state=42)]) #random get 700 data
+    test = pd.concat([test_0.sample(n=100, random_state=42), test_other.sample(n=400, random_state=42)]) #random get 700 data
     test_img = test['path'].tolist()
     labels = test['womac'].tolist()
     test_img = [root + i for i in test_img]

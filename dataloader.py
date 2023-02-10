@@ -35,7 +35,8 @@ def read_paired_path(csv_path):
     img1_path = df['path1'].tolist()
     img2_path = df['path2'].tolist()
     # labels = df[['label', 'painL', 'painR']]
-    labels = list(zip(df.label, df.painL, df.painR))
+    # labels = list(zip(df.label, df.painL, df.painR))
+    labels = list(zip(df.label, df.V00WOMKPL.astype('int32'), df.V00WOMKPR.astype('int32'))) #pytorch metric learning
     return img1_path, img2_path, labels
 
 class MultiData(data.Dataset):

@@ -2,6 +2,7 @@ import pandas as pd
 from dataloader import MultiData, read_paired_path
 from Net3D2D import MRPretrained
 from losses import ContrastiveLoss
+from pytorch_metric_learning import losses
 from utils.make_config import save_json
 from trainer import fit
 
@@ -167,6 +168,7 @@ os.makedirs(checkpoints, exist_ok=True)
 model = MRPretrained(args_m=args)
 model.cuda()
 loss_fn = ContrastiveLoss(args.margin)
+# loss_fn = losses.NTXentLoss(temperature=0.07)
 if args.op == 'adam':
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 elif args.op == 'sgd':
