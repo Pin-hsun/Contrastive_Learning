@@ -1,6 +1,6 @@
 import pandas as pd
 from dataloader import MultiData, read_paired_path
-from Net3D2D import MRPretrained
+from models.Net3D2D import MRPretrained
 from losses import ContrastiveLoss
 from pytorch_metric_learning import losses
 from utils.make_config import save_json
@@ -70,6 +70,18 @@ parser.add_argument('--n_epochs_decay', type=int, help='# of iter to linearly de
 parser.add_argument('--lr_policy', type=str, help='learning rate policy: lambda|step|plateau|cosine')
 parser.add_argument('--log_interval', type=int, help='show loos of n interval')
 parser.add_argument('--margin', type=int, help='greater than some margin value if they represent different classes')
+
+def read_paired_path(csv_path):
+    # path_list = []
+    df = pd.read_csv(csv_path)
+    paths = df.loc[df.columns.str.startswith('path')]
+    path_list = [i.tolist() for i in paths]
+    # img1_path = df['path1'].tolist()
+    # img2_path = df['path2'].tolist()
+    # labels = df[['label', 'painL', 'painR']]
+    # labels = list(zip(df.label, df.painL, df.painR))
+    labels = list(zip(df.label, df.V00WOMKPL.astype('int32'), df.V00WOMKPR.astype('int32'))) #pytorch metric learning
+    return img1_path, img2_path, labels
 
 def prepare_log(args):
     """

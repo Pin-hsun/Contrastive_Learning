@@ -1,6 +1,6 @@
 import pandas as pd
 from dataloader import MultiData, read_paired_path
-from Net3D2D import MRPretrained
+from models.new_net import MRPretrained
 from losses import ContrastiveLoss
 from pytorch_metric_learning import losses
 from utils.make_config import save_json
@@ -53,7 +53,7 @@ parser.add_argument('--trd', type=float, dest='trd', default=0, help='threshold 
 parser.add_argument('--n01', dest='n01', action='store_true', help='normalize the image to 0~1')
 parser.add_argument('--part_data', action='store_true', help='run partial data for scrip testing')
 # Model
-parser.add_argument('--model', type=str, default='Net3D2D', help='model name')
+parser.add_argument('--model', type=str, default='new_net', help='model name')
 parser.add_argument('--backbone', type=str, default='resnet50', help='model backbone')
 parser.add_argument('--pretrained', type=bool, help='use pretrained model')
 parser.add_argument('--n_classes', type=int, default=2, help='class number')
@@ -81,7 +81,7 @@ def prepare_log(args):
     os.makedirs(os.environ.get('LOGS') + args.dataset + '/', exist_ok=True)
     os.makedirs(os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/', exist_ok=True)
     save_json(args, os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + '0.json')
-    shutil.copy(args.model + '.py', os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + args.model + '.py')
+    shutil.copy('models/'+ args.model + '.py', os.environ.get('LOGS') + args.dataset + '/' + args.prj + '/' + args.model + '.py')
     return args
 
 def plot_embeddings(embeddings, classes, dest, xlim=None, ylim=None):
@@ -134,15 +134,12 @@ else:
     train_csv = 'data/womac_pairs05_train.csv'
     test_csv = 'data/womac_pairs05_test.csv'
 root = os.environ.get('DATASET')
-img1_train, img2_train, labels_train = read_paired_path(train_csv)
-img1_test, img2_test, labels_test = read_paired_path(test_csv)
-# train_index, test_index = train_test_split(list(range(len(labels))), test_size=0.3, random_state=42)
-# test = pd.read_csv(csv_path).iloc[test_index]
-# test.to_csv()
+img_train, labels_train = read_paired_path(train_csv)
+img_test, labels_test = read_paired_path(test_csv)
 
-train_set = MultiData(root=root, path=[img1_train, img2_train], labels=labels_train,
+train_set = MultiData(root=root, path=img_train, labels=labels_train,
                     opt=args, mode='train', filenames=False)
-test_set = MultiData(root=root, path=[img1_test, img2_test], labels=labels_test,
+test_set = MultiData(root=root, path=img_test, labels=labels_test,
                     opt=args, mode='test', filenames=False)
 print('train set:', train_set.__len__()) #467
 print('test set:', test_set.__len__())
@@ -169,8 +166,6 @@ checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'chec
 os.makedirs(checkpoints, exist_ok=True)
 model = MRPretrained(args_m=args)
 model.cuda()
-loss_fn = ContrastiveLoss(args.margin)
-# loss_fn = losses.NTXentLoss(temperature=0.07)
 if args.op == 'adam':
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 elif args.op == 'sgd':
@@ -189,7 +184,7 @@ accuracy_calculator = AccuracyCalculator(include=("precision_at_1",), k=1)
 
 from pytorch_metric_learning_trainer import train, test
 for epoch in range(1, args.n_epochs+1):
-    train(model, loss_func, device, train_loader, optimizer, epoch)
+    train(model, loss_func, device, train_loader, optimizer, epoch, args.batch_size)
     test(train_loader, test_loader, model, accuracy_calculator)
 
 # CUDA_VISIBLE_DEVICES=2 python pytorch_metric_learning_main.py --prj 0209_test --part_data
