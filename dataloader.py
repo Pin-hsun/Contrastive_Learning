@@ -151,7 +151,7 @@ class PairedData3D(data.Dataset): # path = list of img path from csv
 
     def get_augumentation(self, inputs):
         outputs = []
-        if self.twocrop:
+        if self.twocrop & (self.mode=='train'):
             augmented = [self.transforms(**inputs), self.transforms(**inputs)]
             augmented[0]['0000'] = augmented[0].pop('image')
             augmented[1]['0000'] = augmented[1].pop('image')
@@ -195,7 +195,7 @@ class PairedData3D(data.Dataset): # path = list of img path from csv
         for i in self.all_paths:  # loop over all subjects in a pair
             filenames = filenames + i[index]
             length_of_each_path.append(len(i[index]))
-        if self.twocrop:
+        if self.twocrop & (self.mode=='train'):
             length_of_each_path = length_of_each_path*2
 
         inputs = self.load_to_dict(filenames)
@@ -211,8 +211,8 @@ class PairedData3D(data.Dataset): # path = list of img path from csv
                 temp.append(outputs.pop(0).unsqueeze(3))
             total.append(torch.cat(temp, 3))
         outputs = total
-        labels = self.labels[index]
-        if self.twocrop:
+        labels = (self.labels[index][1], self.labels[index][2])
+        if self.twocrop & (self.mode=='train'):
             outputs = [total[0], total[2], total[1], total[3]] # 0-2 1-3 is augmented pairs
             labels = (self.labels[index][1], self.labels[index][1], self.labels[index][2], self.labels[index][2])
 
@@ -236,15 +236,15 @@ if __name__ == '__main__':
     parser.add_argument('--twocrop', action='store_true', dest='twocrop', default=True)
     args = parser.parse_args()
 
-    csv_path = 'data/part_train.csv'
+    csv_path = 'data/part_test.csv'
     root = '/media/ExtHDD02/OAIDataBase/'
     paths, labels = read_paired_path(csv_path)
 
-    train_set = MultiData(root=root, path=paths, labels=labels, opt=args, mode='train', filenames=True, transforms=None)
+    test_set = MultiData(root=root, path=paths, labels=labels, opt=args, mode='test', filenames=True, transforms=None)
 
-    print(len(train_set.__getitem__(1)[0])) #img
-    print(train_set.__getitem__(1)[1]) #label
-    print(train_set.__getitem__(1)[0][0].shape)
+    print(len(test_set.__getitem__(1)[0])) #img
+    print(test_set.__getitem__(1)[1]) #label
+    print(test_set.__getitem__(1)[0][0].shape)
 
     # for i in range(len(train_set.__getitem__(1)[0])):
     #     imgs = train_set.__getitem__(1)[0][i]
