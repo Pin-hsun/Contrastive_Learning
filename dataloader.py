@@ -21,8 +21,8 @@ def read_paired_path(csv_path):
         path_list.append(col.values.tolist())
     print('reading csv at {} with {} imgs in a pair'.format(csv_path, len(df_paths.columns)))
     # labels = df[['label', 'painL', 'painR']]
-    # labels = list(zip(df.label, df.painL, df.painR))
-    labels = list(zip(df.label, df.V00WOMKPL.astype('int32'), df.V00WOMKPR.astype('int32'))) #pytorch metric learning
+    labels = list(zip(df.painL, df.painR))
+    # labels = list(zip(df.label, df.V00WOMKPL.astype('int32'), df.V00WOMKPR.astype('int32'))) #pytorch metric learning
     return path_list, labels
 
 def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')):
@@ -30,7 +30,7 @@ def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')
     if 'train' in need:
         transformations['train'] = A.Compose([
             A.Resize(resize, resize),
-            #A.augmentations.geometric.rotate.Rotate(limit=45, p=0.5),
+            A.augmentations.geometric.rotate.Rotate(limit=45, p=0.5),
             A.RandomCrop(height=crop_size, width=crop_size, p=1.),
             #A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), max_pixel_value=400),
             ToTensorV2(p=1.0),
@@ -87,7 +87,7 @@ class MultiData(data.Dataset):
             return outputs_all, labels
 
 
-class PairedData3D(data.Dataset): # path = list of img path from csv
+class PairedData3D(data.Dataset): # path = list of pairs (img paths) from csv
     def __init__(self, root, paths, opt, mode, transforms=None, labels=None, filenames=True, index=None):
         super(PairedData3D, self).__init__()
 
@@ -211,10 +211,10 @@ class PairedData3D(data.Dataset): # path = list of img path from csv
                 temp.append(outputs.pop(0).unsqueeze(3))
             total.append(torch.cat(temp, 3))
         outputs = total
-        labels = (self.labels[index][1], self.labels[index][2])
+        labels = (self.labels[index][0], self.labels[index][1])
         if self.twocrop & (self.mode=='train'):
             outputs = [total[0], total[2], total[1], total[3]] # 0-2 1-3 is augmented pairs
-            labels = (self.labels[index][1], self.labels[index][1], self.labels[index][2], self.labels[index][2])
+            labels = (self.labels[index][0], self.labels[index][0], self.labels[index][1], self.labels[index][1])
 
         # return only images or with filenames
         if self.filenames:
@@ -223,6 +223,7 @@ class PairedData3D(data.Dataset): # path = list of img path from csv
             return outputs, labels
 
 if __name__ == '__main__':
+    from torch.utils.data import DataLoader
     import argparse
 
     # Arguments
@@ -235,16 +236,28 @@ if __name__ == '__main__':
     parser.add_argument('--n01', action='store_true', dest='n01', default=True)
     parser.add_argument('--twocrop', action='store_true', dest='twocrop', default=True)
     args = parser.parse_args()
+    print(args)
 
-    csv_path = 'data/part_test.csv'
+    csv_path = 'data/SupCon_pairs03_part_train.csv'
     root = '/media/ExtHDD02/OAIDataBase/'
     paths, labels = read_paired_path(csv_path)
+    print(labels)
 
-    test_set = MultiData(root=root, path=paths, labels=labels, opt=args, mode='test', filenames=True, transforms=None)
+    train_set = MultiData(root=root, path=paths, labels=labels, opt=args, mode='train', filenames=True, transforms=None)
+    train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=2, shuffle=False, pin_memory=True)
+    print(len(train_set.__getitem__(1)[0]))  # img
+    print(train_set.__getitem__(1)[1])  # label
 
-    print(len(test_set.__getitem__(1)[0])) #img
-    print(test_set.__getitem__(1)[1]) #label
-    print(test_set.__getitem__(1)[0][0].shape)
+    # for i in range(train_set.__len__()):
+    #     print(len(train_set.__getitem__(i)[0])) #img
+    #     print(train_set.__getitem__(i)[1]) #label
+    #     print(train_set.__getitem__(i)[2]) #filenames
+    #     print(train_set.__getitem__(1)[0][0].shape)
+
+    # for batch_idx, (data, labels, files) in enumerate(train_loader):
+    #     print(files)
+    #     print(labels)
+    #     print(data[0].shape)
 
     # for i in range(len(train_set.__getitem__(1)[0])):
     #     imgs = train_set.__getitem__(1)[0][i]

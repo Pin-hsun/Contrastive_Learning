@@ -83,11 +83,12 @@ class MRPretrained(nn.Module):
             self.fmap_c = 512
 
         self.features = self.get_encoder(args_m)
-        if args_m.fuse == 'cat':
-            self.fc = nn.Sequential(nn.Linear(self.fmap_c*23, 3))
-        if args_m.fuse == 'max':
-            self.fc = nn.Sequential(nn.Linear(self.fmap_c, 3))
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
+        if args_m.fuse == 'cat':
+            self.fc = nn.Sequential(nn.Linear(self.fmap_c*23, self.fmap_c), nn.Linear(self.fmap_c, 5))
+        if args_m.fuse == 'max':
+            self.fc = nn.Sequential(nn.Linear(self.fmap_c, 5))
+
         self.fuse = args_m.fuse
         self.fc_use = args_m.fc_use
 
@@ -109,21 +110,25 @@ class MRPretrained(nn.Module):
         return x, B
 
     def cat_features(self, x, B): # concatenate across the slices
-        x = self.features(x)  # (B*23, 3, 1, 1)
-        x = self.avg(x)  # (B*23, 512, 1, 1)
-        x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 3, 1, 1)
-        xcat = x.view(B, x.shape[1] * x.shape[2], x.shape[3], x.shape[4])  # (B, 23*3, 1, 1)
+        x = self.features(x)  # (B*23, 3, 1, 1) alex=(B*23, 256, 7, 7)
+        x = self.avg(x)  # (B*23, 3, 1, 1) alex=(B*23, 256, 1, 1)
+        x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 256, 3, 1, 1)
+        xcat = x.view(B, x.shape[1] * x.shape[2], x.shape[3], x.shape[4])  # (B, 23*256, 1, 1)
         features = torch.squeeze(xcat, 3)
-        features = torch.squeeze(features, 2)
+        features = torch.squeeze(features, 2) # (B, 23*256)
+        if self.fc_use:
+            features = self.fc(features)
         return features
 
     def max_features(self, x, B): # max-pooling across the slices
         x = self.features(x)  # (B*23, 512, 7, 7)
         x = self.avg(x)  # (B*23, 512, 1, 1)
         x = x.view(B, x.shape[0] // B, x.shape[1], x.shape[2], x.shape[3])  # (B, 23, 512, 1, 1)
-        features, _ = torch.max(x, 1)  # (B, 3, 1, 1)
+        features, _ = torch.max(x, 1)  # (B, 512, 1, 1)
         features = torch.squeeze(features, 3)
         features = torch.squeeze(features, 2) #torch.Size([1, 2048])
+        if self.fc_use:
+            features = self.fc(features)
         return features
 
     def forward(self, img_list):   #[B, 3, 256, 256, 23]
@@ -139,10 +144,6 @@ class MRPretrained(nn.Module):
                 features = self.cat_features(x, B)
             if self.fuse == 'max':  # max-pooling across the slices
                 features = self.max_features(x, B)
-            # if self.fc_use:
-            #     output = self.fc(x_features)
-            # else:
-            #     output1 = x_features
             out.append(features)
 
         return out

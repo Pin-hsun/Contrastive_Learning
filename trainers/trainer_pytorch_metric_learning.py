@@ -21,31 +21,33 @@ def offline_miner(b):
 def train(model, loss_func, device, train_loader, test_loader, optimizer, epoch, checkpoints, writer):
     model.train()
     train_loss = 0
-    # for batch_idx, (data, labels) in enumerate(train_loader):
-    #     # labels = torch.cat((labels[1], labels[2])) # get pain label
-    #     labels = torch.cat(labels)
-    #     data = list(d.to(device) for d in data)
-    #     labels = labels.to(device)
-    #     optimizer.zero_grad()
-    #     embeddings = model(data)
-    #     embeddings = torch.cat(embeddings, 0) #torch.Size([2, 69]
-    #     # indices_tuple = offline_miner(batch)
-    #     # print(indices_tuple)
-    #     # loss = loss_func(embeddings, labels, indices_tuple)
-    #     loss = loss_func(embeddings, labels)
-    #     train_loss += loss
-    #     loss.backward()
-    #     optimizer.step()
-    #     if batch_idx % 20 == 0:
-    #         print(
-    #             "Epoch {} Iteration {}: Loss = {}".format(
-    #                 epoch, batch_idx, loss
-    #             )
-    #         )
+    for batch_idx, (data, labels) in enumerate(train_loader):
+        # labels = torch.cat((labels[1], labels[2])) # get pain label
+        labels = torch.cat(labels).to(device)
+        # data = torch.cat(data).to(device)
+        data = list(d.to(device) for d in data)
+        # labels = list(d.to(device) for d in labels)
+        optimizer.zero_grad()
+        embeddings = model(data)
+        embeddings = torch.cat(embeddings, 0) #torch.Size([4*B, fc_out_feat]
+        # indices_tuple = offline_miner(batch)
+        # print(indices_tuple)
+        # loss = loss_func(embeddings, labels, indices_tuple)
+        loss = loss_func(embeddings, labels)
+        train_loss += loss
+        loss.backward()
+        optimizer.step()
+        if batch_idx % 20 == 0:
+            print(
+                "Epoch {} Iteration {}: Loss = {}".format(
+                    epoch, batch_idx, loss
+                )
+            )
+    train_loss /= (batch_idx + 1)
+    writer.add_scalar('Loss/train', train_loss, epoch)
     model.eval()
     val_loss = 0
     for batch_idx, (data, labels) in enumerate(test_loader):
-        print(batch_idx)
         labels = torch.cat(labels)
         data = list(d.to(device) for d in data)
         labels = labels.to(device)
@@ -54,8 +56,6 @@ def train(model, loss_func, device, train_loader, test_loader, optimizer, epoch,
         loss = loss_func(embeddings, labels)
         val_loss += loss
 
-    train_loss /= (batch_idx + 1)
-    writer.add_scalar('Loss/train', train_loss, epoch)
     val_loss /= (batch_idx + 1)
     writer.add_scalar('Loss/test', val_loss, epoch)
     if epoch % 1 == 0:

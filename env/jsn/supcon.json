@@ -2,7 +2,7 @@
     "train":
       {
         "env": null,
-        "dataset": "siamese",
+        "dataset": "supcon",
         "prj": "default",
         "preload": true,
         "load3d": true,
@@ -11,15 +11,15 @@
         "n01": true,
         "gray": false,
         "trd": 0,
-        "twocrop": false,
-        "model": "Net3D2D",
-        "backbone": "siamese_resnet101",
-        "pretrained": true,
+        "twocrop": true,
+        "model": "new_net",
+        "backbone": "alexnet",
+        "pretrained": false,
         "batch_size": 1,
         "test_batch_size": 1,
         "fuse": "cat",
         "n_epochs": 40,
-        "lr": 0.0001,
+        "lr": 0.001,
         "op": "adam",
         "fc_use": false,
         "epoch_count": 0,
@@ -35,7 +35,7 @@
     "test":
       {
         "env": null,
-        "dataset": "siamese",
+        "dataset": "supcon",
         "prj": "default",
         "load3d": true,
         "resize": 0,

@@ -4,10 +4,10 @@ from models.new_net import MRPretrained
 from losses import ContrastiveLoss
 from pytorch_metric_learning import losses
 from utils.make_config import save_json
-from trainer import fit
-
+from trainers.trainer_pytorch_metric_learning import train, test
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from torch.optim import lr_scheduler
 import torch.optim as optim
 from torch.autograd import Variable
@@ -157,9 +157,12 @@ if args.preload:
         for i, x in enumerate(tqdm(test_loader)):
             pass
     print('Preloading time: ' + str(time.time() - tini))
-
 # Logger
 logger = pl_loggers.TensorBoardLogger(os.environ.get('LOGS') + args.dataset + '/', name=args.prj)
+writer = SummaryWriter('./outs/' + args.prj)
+# Trainer
+checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')
+os.makedirs(checkpoints, exist_ok=True)
 
 # Trainer
 checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')
@@ -182,9 +185,8 @@ loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1)
 # )
 accuracy_calculator = AccuracyCalculator(include=("precision_at_1",), k=1)
 
-from pytorch_metric_learning_trainer import train, test
 for epoch in range(1, args.n_epochs+1):
-    train(model, loss_func, device, train_loader, optimizer, epoch, args.batch_size)
+    train(model, loss_func, device, train_loader, optimizer, epoch, args.batch_size, checkpoints, writer)
     test(train_loader, test_loader, model, accuracy_calculator)
 
 # CUDA_VISIBLE_DEVICES=2 python pytorch_metric_learning_main.py --prj 0209_test --part_data

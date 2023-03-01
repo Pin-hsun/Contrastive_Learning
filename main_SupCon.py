@@ -52,7 +52,7 @@ parser.add_argument('--part_data', action='store_true', help='run partial data f
 # Model
 parser.add_argument('--model', type=str, default='new_net', help='model name')
 parser.add_argument('--backbone', type=str, default='resnet50', help='model backbone')
-parser.add_argument('--pretrained', type=bool, help='use pretrained model')
+parser.add_argument('--pretrained', action='store_true', help='use pretrained model')
 parser.add_argument('--n_classes', type=int, default=2, help='class number')
 parser.add_argument('--fuse', type=str, default='cat', help='cat or max across the 2D slices')
 parser.add_argument('--op', dest='optimizer', type=str, help='adam or sgd')
@@ -125,11 +125,11 @@ print(args)
 
 # read csv file to get img path
 if args.part_data:
-    train_csv = 'data/part_train.csv'
-    test_csv = 'data/part_test.csv'
+    train_csv = 'data/SupCon_pairs03_part_train.csv'
+    test_csv = 'data/SupCon_pairs03_part_test.csv'
 else:
-    train_csv = 'data/womac_pairs05_train.csv'
-    test_csv = 'data/womac_pairs05_test.csv'
+    train_csv = 'data/SupCon_pairs03_train.csv'
+    test_csv = 'data/SupCon_pairs03_test.csv'
 root = os.environ.get('DATASET')
 img_train, labels_train = read_paired_path(train_csv)
 img_test, labels_test = read_paired_path(test_csv)
@@ -155,7 +155,6 @@ print('test set:', test_set.__len__())
 
 train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True, pin_memory=True)
 test_loader = DataLoader(dataset=test_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=False, pin_memory=True)
-
 # preload
 if args.preload:
     tini = time.time()
@@ -186,6 +185,7 @@ device = torch.device("cuda")
 # distance = distances.CosineSimilarity()
 loss_func = losses.SupConLoss(temperature=0.1)
 # loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1)
+# mining_func = miners.TripletMarginMiner(
 # mining_func = miners.TripletMarginMiner(
 #     margin=0.2, distance=distance, type_of_triplets="semihard"
 # )
