@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from dataloader import MultiData, read_paired_path
+from dataloader import PairedData3D, read_paired_path
 from models.new_net import MRPretrained
 from losses import ContrastiveLoss
 from pytorch_metric_learning import losses
@@ -15,7 +15,6 @@ import torch.optim as optim
 from torch.autograd import Variable
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
-cuda = torch.cuda.is_available()
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -122,6 +121,7 @@ with open('env/jsn/' + parser.parse_args().jsn + '.json', 'rt') as f:
 # Finalize Arguments and create files for logging
 args = prepare_log(args)
 print(args)
+cuda = torch.cuda.is_available()
 
 # read csv file to get img path
 if args.part_data:
@@ -131,8 +131,8 @@ else:
     train_csv = 'data/SupCon_pairs03_train.csv'
     test_csv = 'data/SupCon_pairs03_test.csv'
 root = os.environ.get('DATASET')
-img_train, labels_train = read_paired_path(train_csv)
-img_test, labels_test = read_paired_path(test_csv)
+img_train, labels_train = read_paired_path(train_csv, 300)
+img_test, labels_test = read_paired_path(test_csv, 100)
 
 # # construct data loader for 'cifar100'
 # mean = (0.5071, 0.4867, 0.4408)
@@ -146,11 +146,11 @@ img_test, labels_test = read_paired_path(test_csv)
 #     normalize,
 # ])
 
-train_set = MultiData(root=root, path=img_train, labels=labels_train,
+train_set = PairedData3D(root=root, paths=img_train, labels=labels_train,
                     opt=args, mode='train', filenames=False)
-test_set = MultiData(root=root, path=img_test, labels=labels_test,
+test_set = PairedData3D(root=root, paths=img_test, labels=labels_test,
                     opt=args, mode='test', filenames=False)
-print('train set:', train_set.__len__()) #467
+print('train set:', train_set.__len__())
 print('test set:', test_set.__len__())
 
 train_loader = DataLoader(dataset=train_set, num_workers=args.threads, batch_size=args.batch_size, shuffle=True, pin_memory=True)
@@ -174,17 +174,17 @@ checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'chec
 os.makedirs(checkpoints, exist_ok=True)
 model = MRPretrained(args_m=args)
 model.cuda()
-if args.op == 'adam':
+if args.optimizer == 'adam':
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
-elif args.op == 'sgd':
+elif args.optimizer == 'sgd':
     optimizer = optim.SGD(model.parameters(), lr=args.lr)
 scheduler = lr_scheduler.StepLR(optimizer, 8, gamma=0.1, last_epoch=-1)
 
 ### pytorch-metric-learning stuff ###
 device = torch.device("cuda")
 # distance = distances.CosineSimilarity()
-loss_func = losses.SupConLoss(temperature=0.1)
-# loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1)
+# loss_func = losses.SupConLoss(temperature=0.1)
+loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1)
 # mining_func = miners.TripletMarginMiner(
 # mining_func = miners.TripletMarginMiner(
 #     margin=0.2, distance=distance, type_of_triplets="semihard"
@@ -192,7 +192,7 @@ loss_func = losses.SupConLoss(temperature=0.1)
 accuracy_calculator = AccuracyCalculator(include=("precision_at_1",), k=1)
 
 for epoch in range(1, args.n_epochs+1):
-    train(model, loss_func, device, train_loader, test_loader, optimizer, epoch, checkpoints, writer)
-    # test(model, loss_func, device, train_loader, test_loader, accuracy_calculator, epoch, writer)
+    train(model, loss_func, device, train_loader, optimizer, epoch, checkpoints, writer)
+    # test(model, loss_func, device, test_loader, epoch, writer)
 
 #  CUDA_VISIBLE_DEVICES=2 python main_SupCon.py --prj 0216_test --twocrop -b 16 --n_epochs 30 --lr 0.00001 --part_data

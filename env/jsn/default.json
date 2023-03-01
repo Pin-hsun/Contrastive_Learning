@@ -20,7 +20,7 @@
         "fuse": "cat",
         "n_epochs": 40,
         "lr": 0.0001,
-        "op": "adam",
+        "optimizer": "adam",
         "fc_use": false,
         "epoch_count": 0,
         "epoch_load": 0,

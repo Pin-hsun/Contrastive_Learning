@@ -131,22 +131,18 @@ class MRPretrained(nn.Module):
             features = self.fc(features)
         return features
 
-    def forward(self, img_list):   #[B, 3, 256, 256, 23]
-        out = []
-        for i in range(len(img_list)):
-            x = img_list[i]
-            # dummies
-            features = None  # features we want to further analysis
-            # reshape
-            x, B = self.reshape(x)
-            # fusion
-            if self.fuse == 'cat':  # concatenate across the slices
-                features = self.cat_features(x, B)
-            if self.fuse == 'max':  # max-pooling across the slices
-                features = self.max_features(x, B)
-            out.append(features)
+    def forward(self, x):   #[B, 3, 256, 256, 23]
+        # dummies
+        features = None  # features we want to further analysis
+        # reshape
+        x, B = self.reshape(x)
+        # fusion
+        if self.fuse == 'cat':  # concatenate across the slices
+            features = self.cat_features(x, B)
+        if self.fuse == 'max':  # max-pooling across the slices
+            features = self.max_features(x, B)
 
-        return out
+        return features
 
 
 if __name__ == '__main__':

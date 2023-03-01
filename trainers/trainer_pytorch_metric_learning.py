@@ -18,23 +18,19 @@ def offline_miner(b):
     return indices_tuple
 
 ### MNIST code originally from https://github.com/pytorch/examples/blob/master/mnist/main.py ###
-def train(model, loss_func, device, train_loader, test_loader, optimizer, epoch, checkpoints, writer):
+def train(model, loss_func, device, train_loader, optimizer, epoch, checkpoints, writer):
     model.train()
     train_loss = 0
     for batch_idx, (data, labels) in enumerate(train_loader):
-        # labels = torch.cat((labels[1], labels[2])) # get pain label
-        labels = torch.cat(labels).to(device)
-        # data = torch.cat(data).to(device)
-        data = list(d.to(device) for d in data)
-        # labels = list(d.to(device) for d in labels)
+        labels = labels.view(labels.shape[0] * labels.shape[1])
+        data = data.view(data.shape[0] * data.shape[1], data.shape[2], data.shape[3], data.shape[4], data.shape[5])
+        data, labels = data.to(device), labels.to(device)
         optimizer.zero_grad()
-        embeddings = model(data)
-        embeddings = torch.cat(embeddings, 0) #torch.Size([4*B, fc_out_feat]
+        embeddings = model(data) #torch.Size([4*B, out_feature])
         # indices_tuple = offline_miner(batch)
         # print(indices_tuple)
         # loss = loss_func(embeddings, labels, indices_tuple)
         loss = loss_func(embeddings, labels)
-        train_loss += loss
         loss.backward()
         optimizer.step()
         if batch_idx % 20 == 0:
@@ -43,56 +39,41 @@ def train(model, loss_func, device, train_loader, test_loader, optimizer, epoch,
                     epoch, batch_idx, loss
                 )
             )
+        train_loss += loss
     train_loss /= (batch_idx + 1)
     writer.add_scalar('Loss/train', train_loss, epoch)
+
+    if epoch % 1 == 0:
+        torch.save(model, checkpoints + '/epoch' + str(epoch) + '.pth')
+
+# def extract_embeddings(dataloader, model):
+#     model.eval()
+#     embeddings = []
+#     classes = []
+#     for data, target in dataloader:
+#         images = [img.cuda() for img in data]
+#         out = [x.detach().cpu().numpy() for x in model.forward(images)]
+#         labels = [i.numpy() for i in target]
+#         embeddings += out
+#         classes += labels
+#     classes = np.concatenate(classes)
+#     embeddings = np.concatenate(embeddings)
+#
+#     return embeddings, classes
+
+def test(model, loss_func, device, test_loader, epoch, writer):
     model.eval()
     val_loss = 0
     for batch_idx, (data, labels) in enumerate(test_loader):
-        labels = torch.cat(labels)
-        data = list(d.to(device) for d in data)
-        labels = labels.to(device)
+        labels = labels.view(labels.shape[0] * labels.shape[1])
+        data = data.view(data.shape[0] * data.shape[1], data.shape[2], data.shape[3], data.shape[4], data.shape[5])
+        data, labels = data.to(device), labels.to(device)
         embeddings = model(data)
-        embeddings = torch.cat(embeddings, 0)
         loss = loss_func(embeddings, labels)
         val_loss += loss
 
     val_loss /= (batch_idx + 1)
     writer.add_scalar('Loss/test', val_loss, epoch)
-    if epoch % 1 == 0:
-        torch.save(model, checkpoints + '/epoch' + str(epoch) + '.pth')
-
-### convenient function from pytorch-metric-learning ###
-def get_all_embeddings(dataset, model):
-    tester = testers.BaseTester()
-    return tester.get_all_embeddings(dataset, model)
-
-def extract_embeddings(dataloader, model):
-    model.eval()
-    embeddings = []
-    classes = []
-    for data, target in dataloader:
-        images = [img.cuda() for img in data]
-        out = [x.detach().cpu().numpy() for x in model.forward(images)]
-        labels = [i.numpy() for i in target]
-        embeddings += out
-        classes += labels
-    classes = np.concatenate(classes)
-    embeddings = np.concatenate(embeddings)
-
-    return embeddings, classes
-
-### compute accuracy using AccuracyCalculator from pytorch-metric-learning ###
-
-def test(model, train_loader, test_loader, accuracy_calculator):
-    train_embeddings, train_labels = extract_embeddings(train_loader, model)
-    test_embeddings, test_labels = extract_embeddings(test_loader, model)
-    print("Computing accuracy")
-    accuracies = accuracy_calculator.get_accuracy(
-        query=test_embeddings, query_labels=test_labels,
-        reference=train_embeddings, reference_labels=train_labels,
-        embeddings_come_from_same_source=False
-    )
-    print("Test set accuracy (Precision@1) = {}".format(accuracies["precision_at_1"]))
 
 if __name__ ==  '__main__':
     device = torch.device("cuda")

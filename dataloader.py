@@ -12,16 +12,17 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 import tifffile as tiff
 
-def read_paired_path(csv_path):
+def read_paired_path(csv_path, n=None):
+    # path_list = [n*[2]]
     path_list = []
     df = pd.read_csv(csv_path)
-    df_paths = df[df.columns[df.columns.str.startswith('path')]]
-    for i in range(len(df_paths.columns)):
-        col = df_paths[df_paths.columns[i]]
-        path_list.append(col.values.tolist())
+    if n is None:
+        n = len(df)
+    df_paths = df[df.columns[df.columns.str.startswith('path')]][:n]
+    for index, row in df_paths.iterrows():
+        path_list.append(row.values)
     print('reading csv at {} with {} imgs in a pair'.format(csv_path, len(df_paths.columns)))
-    # labels = df[['label', 'painL', 'painR']]
-    labels = list(zip(df.painL, df.painR))
+    labels = list(zip(df.painL[:n], df.painR[:n]))
     # labels = list(zip(df.label, df.V00WOMKPL.astype('int32'), df.V00WOMKPR.astype('int32'))) #pytorch metric learning
     return path_list, labels
 
@@ -32,7 +33,7 @@ def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')
             A.Resize(resize, resize),
             A.augmentations.geometric.rotate.Rotate(limit=45, p=0.5),
             A.RandomCrop(height=crop_size, width=crop_size, p=1.),
-            #A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), max_pixel_value=400),
+            A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), max_pixel_value=400),
             ToTensorV2(p=1.0),
         ], p=1.0, additional_targets=additional_targets)
     if 'test' in need:
@@ -43,70 +44,25 @@ def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')
         ], p=1.0, additional_targets=additional_targets)
     return transformations
 
-class MultiData(data.Dataset):
-    """
-    Multiple unpaired data combined
-    """
-    def __init__(self, root, path, opt, mode, labels=None, transforms=None, filenames=False, index=None):
-        super(MultiData, self).__init__()
-        self.opt = opt
-        self.mode = mode
-        self.filenames = filenames
-        self.subset = []
-
-        if self.opt.load3d:
-            print('load3D...')
-            self.subset.append(PairedData3D(root=root, paths=path, opt=opt, mode=mode, labels=labels,
-                                            transforms=transforms, filenames=filenames, index=index))
-        else:
-            self.subset.append(PairedData(root=root, path=paired_path[p],opt=opt, mode=mode, labels=labels,
-                                          transforms=transforms, filenames=filenames, index=index))
-
-    def shuffle_images(self):
-        for set in self.subset:
-            random.shuffle(set.images)
-
-    def __len__(self):
-        return min([len(x) for x in self.subset])
-
-    def __getitem__(self, index):
-        outputs_all = []
-        filenames_all = []
-        if self.filenames:
-            for i in range(len(self.subset)):
-                outputs, labels, filenames = self.subset[i].__getitem__(index)
-                outputs_all = outputs_all + outputs
-                filenames_all = filenames_all + filenames
-            # return {'img': outputs_all, 'labels': labels, 'filenames': filenames_all}
-            return outputs_all, labels, filenames_all
-        else:
-            for i in range(len(self.subset)):
-                outputs, labels = self.subset[i].__getitem__(index)
-                outputs_all = outputs_all + outputs
-            # return {'img': outputs_all, 'labels': labels}
-            return outputs_all, labels
-
 
 class PairedData3D(data.Dataset): # path = list of pairs (img paths) from csv
     def __init__(self, root, paths, opt, mode, transforms=None, labels=None, filenames=True, index=None):
         super(PairedData3D, self).__init__()
 
         self.index = index
+        self.all_paths = []
+        for pair in paths:
+            temp = []
+            for path in pair:
+                temp.append(glob.glob(os.path.join(root, path) + '*'))
+            self.all_paths.append(temp)
         self.opt = opt
         self.mode = mode
         self.twocrop = opt.twocrop
         self.filenames = filenames
         self.labels = labels
-        self.all_paths = []
-        # list shape = (imgs in a pair,subject number,img num in a knee=23)
-        for pair1 in paths:
-            temp = []
-            for one_path in pair1:
-                temp.append(glob.glob(os.path.join(root, one_path) + '*'))
-            self.all_paths.append(temp)
-
         if self.opt.resize == 0:
-            self.resize = np.array(Image.open(self.all_paths[0][0][0])).shape[1]
+            self.resize = np.array(Image.open(glob.glob(root+paths[0][0]+'*')[0])).shape[1]
         else:
             self.resize = self.opt.resize
         if self.opt.cropsize == 0:
@@ -189,36 +145,31 @@ class PairedData3D(data.Dataset): # path = list of pairs (img paths) from csv
         else:
             index = idx
 
-        # add all the slices into the dict
-        length_of_each_path = []
-        filenames = []
-        for i in self.all_paths:  # loop over all subjects in a pair
-            filenames = filenames + i[index]
-            length_of_each_path.append(len(i[index]))
-        if self.twocrop & (self.mode=='train'):
-            length_of_each_path = length_of_each_path*2
+        # load imgs to dict and do augmentation
+        augmented_img_pairs = []
+        id = []
+        for subject in self.all_paths[idx]:
+            id.append(subject[0].split('/')[-1])
+            input_dic = self.load_to_dict(subject)
+            outputs = self.get_augumentation(input_dic)
+            augmented_img_pairs.append(outputs)
+        #  augmented_img_pairs = [2[23[torch.Size([3, 256, 256])]]]
 
-        inputs = self.load_to_dict(filenames)
-
-        # Do augmentation
-        outputs = self.get_augumentation(inputs)
-
-        # split to different paths
+        # turn augmented_img_pairs into torch.Size([3, 256, 256, 23])
         total = []
-        for split in length_of_each_path:
+        for subject in augmented_img_pairs:
             temp = []
-            for i in range(split):
-                temp.append(outputs.pop(0).unsqueeze(3))
+            for i in range(len(subject)):
+                temp.append(subject.pop(0).unsqueeze(3))
             total.append(torch.cat(temp, 3))
-        outputs = total
-        labels = (self.labels[index][0], self.labels[index][1])
-        if self.twocrop & (self.mode=='train'):
-            outputs = [total[0], total[2], total[1], total[3]] # 0-2 1-3 is augmented pairs
-            labels = (self.labels[index][0], self.labels[index][0], self.labels[index][1], self.labels[index][1])
 
+        outputs = torch.stack(total) #torch.Size([4, 3, 256, 256, 23])
+        labels = torch.tensor((self.labels[index][0], self.labels[index][1]))
+        if self.twocrop & (self.mode=='train'):
+            labels = torch.cat([labels, labels], dim=0)
         # return only images or with filenames
         if self.filenames:
-            return outputs, labels, filenames
+            return outputs, labels, id
         else:
             return outputs, labels
 
@@ -234,19 +185,19 @@ if __name__ == '__main__':
     parser.add_argument('--load3d', action='store_true', dest='load3d', default=True, help='do 3D')
     parser.add_argument('--trd', type=float, default=0)
     parser.add_argument('--n01', action='store_true', dest='n01', default=True)
-    parser.add_argument('--twocrop', action='store_true', dest='twocrop', default=True)
+    parser.add_argument('--twocrop', action='store_true', dest='twocrop', default=False)
     args = parser.parse_args()
     print(args)
 
     csv_path = 'data/SupCon_pairs03_part_train.csv'
     root = '/media/ExtHDD02/OAIDataBase/'
     paths, labels = read_paired_path(csv_path)
-    print(labels)
 
-    train_set = MultiData(root=root, path=paths, labels=labels, opt=args, mode='train', filenames=True, transforms=None)
+    train_set = PairedData3D(root=root, paths=paths, labels=labels, opt=args, mode='train', filenames=True, transforms=None)
     train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=2, shuffle=False, pin_memory=True)
-    print(len(train_set.__getitem__(1)[0]))  # img
-    print(train_set.__getitem__(1)[1])  # label
+    print(train_set.__getitem__(1)[0].shape)  # img torch.Size([2, 3, 256, 256, 23])
+    print(train_set.__getitem__(1)[1])  # label tensor([1, 0])
+    print(train_set.__getitem__(1)[2])  # id ['9000798_00_L_001.tif', '9000798_00_R_009.tif']
 
     # for i in range(train_set.__len__()):
     #     print(len(train_set.__getitem__(i)[0])) #img
@@ -254,10 +205,12 @@ if __name__ == '__main__':
     #     print(train_set.__getitem__(i)[2]) #filenames
     #     print(train_set.__getitem__(1)[0][0].shape)
 
-    # for batch_idx, (data, labels, files) in enumerate(train_loader):
-    #     print(files)
-    #     print(labels)
-    #     print(data[0].shape)
+    for batch_idx, (data, labels, id) in enumerate(train_loader):
+        labels = labels.view(labels.shape[0]*labels.shape[1])
+        data = data.view(data.shape[0]*data.shape[1], data.shape[2], data.shape[3], data.shape[4], data.shape[5])
+        print(id)
+        print(labels)
+        print(data.shape)
 
     # for i in range(len(train_set.__getitem__(1)[0])):
     #     imgs = train_set.__getitem__(1)[0][i]
