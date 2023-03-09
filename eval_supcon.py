@@ -31,7 +31,7 @@ import seaborn as sns
 from PIL import Image
 
 # custom classes
-from dataloader import MultiData, read_paired_path
+from dataloader import PairedData3D, read_paired_path
 
 parser = argparse.ArgumentParser()#add_help=False)
 # Env
@@ -95,7 +95,7 @@ os.makedirs('plot/'+args.prj, exist_ok=True)
 if args.tsne:
     # read test set path
     img_test, labels_test = read_paired_path('data/SupCon_pairs03_part_test.csv')
-    test_set = MultiData(root=root, path=img_test, labels=labels_test, opt=args, mode='test', filenames=False)
+    test_set = PairedData3D(root=root, paths=img_test, labels=labels_test, opt=args, mode='test', filenames=False)
     test_loader = DataLoader(dataset=test_set, num_workers=4, batch_size=1, shuffle=False, pin_memory=True)
     X, y = extract_embeddings(test_loader, net)
     # n_samples, n_features = X.shape

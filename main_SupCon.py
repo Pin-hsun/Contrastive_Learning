@@ -131,20 +131,9 @@ else:
     train_csv = 'data/SupCon_pairs03_train.csv'
     test_csv = 'data/SupCon_pairs03_test.csv'
 root = os.environ.get('DATASET')
-img_train, labels_train = read_paired_path(train_csv, 300)
-img_test, labels_test = read_paired_path(test_csv, 100)
+img_train, labels_train = read_paired_path(train_csv)
+img_test, labels_test = read_paired_path(test_csv)
 
-# # construct data loader for 'cifar100'
-# mean = (0.5071, 0.4867, 0.4408)
-# std = (0.2675, 0.2565, 0.2761)
-# normalize = transforms.Normalize(mean=mean, std=std)
-# train_transform = transforms.Compose([
-#     transforms.RandomResizedCrop(size=args.cropsize, scale=(0.2, 1.)),
-#     transforms.RandomHorizontalFlip(),
-#     transforms.RandomGrayscale(p=0.2),
-#     transforms.ToTensor(),
-#     normalize,
-# ])
 
 train_set = PairedData3D(root=root, paths=img_train, labels=labels_train,
                     opt=args, mode='train', filenames=False)
@@ -172,27 +161,30 @@ writer = SummaryWriter('./outs/' + args.prj)
 # Trainer
 checkpoints = os.path.join(os.environ.get('LOGS'), args.dataset, args.prj, 'checkpoints')
 os.makedirs(checkpoints, exist_ok=True)
-model = MRPretrained(args_m=args)
-model.cuda()
+model = MRPretrained(args_m=args).cuda()
 if args.optimizer == 'adam':
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 elif args.optimizer == 'sgd':
-    optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=1e-4)
 scheduler = lr_scheduler.StepLR(optimizer, 8, gamma=0.1, last_epoch=-1)
 
 ### pytorch-metric-learning stuff ###
 device = torch.device("cuda")
-# distance = distances.CosineSimilarity()
+
 # loss_func = losses.SupConLoss(temperature=0.1)
 loss_func = losses.ContrastiveLoss(pos_margin=0, neg_margin=1)
-# mining_func = miners.TripletMarginMiner(
-# mining_func = miners.TripletMarginMiner(
-#     margin=0.2, distance=distance, type_of_triplets="semihard"
-# )
+
 accuracy_calculator = AccuracyCalculator(include=("precision_at_1",), k=1)
 
+best = 10
 for epoch in range(1, args.n_epochs+1):
     train(model, loss_func, device, train_loader, optimizer, epoch, checkpoints, writer)
-    # test(model, loss_func, device, test_loader, epoch, writer)
+    validation = test(model, loss_func, device, test_loader, epoch, writer)
+    
+    # save checkpoint
+    if validation < best:
+        best = validation
+        print('saving best valid model ep {} at loss {}'.format(epoch, best))
+        torch.save(model, checkpoints + '/epoch' + str(epoch) + '.pth')
 
 #  CUDA_VISIBLE_DEVICES=2 python main_SupCon.py --prj 0216_test --twocrop -b 16 --n_epochs 30 --lr 0.00001 --part_data

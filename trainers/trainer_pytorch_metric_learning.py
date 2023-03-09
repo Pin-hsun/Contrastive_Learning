@@ -1,13 +1,16 @@
 import numpy as np
+import pynvml
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
+from tqdm import tqdm
 
 from pytorch_metric_learning import distances, losses, miners, reducers, testers
-from pytorch_metric_learning.utils.accuracy_calculator import AccuracyCalculator
+# from pytorch_metric_learning.utils import AccuracyCalculator
 import pytorch_metric_learning.utils.logging_presets as logging_presets
+from utils.SupCon_util import *
 
 def offline_miner(b):
     # indices_tuple = (tensor([anc1, anc2]), tensor([pos1, pos2]), tensor([neg1, neg2]))
@@ -20,31 +23,34 @@ def offline_miner(b):
 ### MNIST code originally from https://github.com/pytorch/examples/blob/master/mnist/main.py ###
 def train(model, loss_func, device, train_loader, optimizer, epoch, checkpoints, writer):
     model.train()
-    train_loss = 0
-    for batch_idx, (data, labels) in enumerate(train_loader):
+    Loss = AverageMeter()
+
+    tqdm_loader = tqdm(train_loader)
+    for batch_idx, (data, labels) in enumerate(tqdm_loader):
+        optimizer.zero_grad()
         labels = labels.view(labels.shape[0] * labels.shape[1])
         data = data.view(data.shape[0] * data.shape[1], data.shape[2], data.shape[3], data.shape[4], data.shape[5])
         data, labels = data.to(device), labels.to(device)
-        optimizer.zero_grad()
-        embeddings = model(data) #torch.Size([4*B, out_feature])
+        batch_size = data.shape[0]
+        embeddings = model(data)  # torch.Size([4*B, out_feature])
         # indices_tuple = offline_miner(batch)
         # print(indices_tuple)
         # loss = loss_func(embeddings, labels, indices_tuple)
         loss = loss_func(embeddings, labels)
+        loss = loss.mean()
+
+        # back propagation
         loss.backward()
         optimizer.step()
-        if batch_idx % 20 == 0:
-            print(
-                "Epoch {} Iteration {}: Loss = {}".format(
-                    epoch, batch_idx, loss
-                )
-            )
-        train_loss += loss
-    train_loss /= (batch_idx + 1)
-    writer.add_scalar('Loss/train', train_loss, epoch)
 
-    if epoch % 1 == 0:
-        torch.save(model, checkpoints + '/epoch' + str(epoch) + '.pth')
+        # visualize losses
+        Loss.update(loss, batch_size)
+        tqdm_loader.set_description('Train Epoch {ep} Loss {Loss.val:.4f} ({Loss.avg:.4f})  '.format(ep=epoch, Loss=Loss))
+
+    writer.add_scalar('Loss/train', Loss.avg, epoch)
+    #
+    # if epoch % 1 == 0:
+    #     torch.save(model, checkpoints + '/epoch' + str(epoch) + '.pth')
 
 # def extract_embeddings(dataloader, model):
 #     model.eval()
@@ -61,19 +67,27 @@ def train(model, loss_func, device, train_loader, optimizer, epoch, checkpoints,
 #
 #     return embeddings, classes
 
+@torch.no_grad()
 def test(model, loss_func, device, test_loader, epoch, writer):
     model.eval()
-    val_loss = 0
-    for batch_idx, (data, labels) in enumerate(test_loader):
+    Loss = AverageMeter()
+    tqdm_loader = tqdm(test_loader)
+
+    for batch_idx, (data, labels) in enumerate(tqdm_loader):
         labels = labels.view(labels.shape[0] * labels.shape[1])
         data = data.view(data.shape[0] * data.shape[1], data.shape[2], data.shape[3], data.shape[4], data.shape[5])
         data, labels = data.to(device), labels.to(device)
-        embeddings = model(data)
+        batch_size = data.shape[0]
+        embeddings = model(data).detach().cpu()
         loss = loss_func(embeddings, labels)
-        val_loss += loss
-
-    val_loss /= (batch_idx + 1)
-    writer.add_scalar('Loss/test', val_loss, epoch)
+        loss = loss.mean()
+        
+        # visualize losses
+        Loss.update(loss, batch_size)
+        tqdm_loader.set_description(
+            'Test Epoch {ep} Loss {Loss.val:.4f} ({Loss.avg:.4f})  '.format(ep=epoch, Loss=Loss))
+    writer.add_scalar('Loss/test', Loss.avg, epoch)
+    return Loss.avg
 
 if __name__ ==  '__main__':
     device = torch.device("cuda")

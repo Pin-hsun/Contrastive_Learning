@@ -40,6 +40,7 @@ def get_transforms(crop_size, resize, additional_targets, need=('train', 'test')
         transformations['test'] = A.Compose([
             A.Resize(resize, resize),
             A.CenterCrop(height=crop_size, width=crop_size, p=1.),
+            A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5), max_pixel_value=400),
             ToTensorV2(p=1.0),
         ], p=1.0, additional_targets=additional_targets)
     return transformations
@@ -72,7 +73,7 @@ class PairedData3D(data.Dataset): # path = list of pairs (img paths) from csv
 
         if transforms is None:
             additional_targets = dict()
-            for i in range(1, 9999):#len(self.all_path)):
+            for i in range(1, 23):
                 additional_targets[str(i).zfill(4)] = 'image'
             self.transforms = get_transforms(crop_size=self.cropsize,
                                              resize=self.resize,
@@ -137,7 +138,7 @@ class PairedData3D(data.Dataset): # path = list of pairs (img paths) from csv
         if self.index is not None:
             return len(self.index)
         else:
-            return len(self.all_paths[0])
+            return len(self.all_paths)
 
     def __getitem__(self, idx):
         if self.index is not None:
@@ -169,7 +170,7 @@ class PairedData3D(data.Dataset): # path = list of pairs (img paths) from csv
             labels = torch.cat([labels, labels], dim=0)
         # return only images or with filenames
         if self.filenames:
-            return outputs, labels, id
+            return outputs, labels, tuple(id)
         else:
             return outputs, labels
 
@@ -195,22 +196,22 @@ if __name__ == '__main__':
 
     train_set = PairedData3D(root=root, paths=paths, labels=labels, opt=args, mode='train', filenames=True, transforms=None)
     train_loader = DataLoader(dataset=train_set, num_workers=4, batch_size=2, shuffle=False, pin_memory=True)
-    print(train_set.__getitem__(1)[0].shape)  # img torch.Size([2, 3, 256, 256, 23])
-    print(train_set.__getitem__(1)[1])  # label tensor([1, 0])
+    print(train_set[1][0])  # img torch.Size([2, 3, 256, 256, 23])
+    # print(train_set.__getitem__(1)[1])  # label tensor([1, 0])
     print(train_set.__getitem__(1)[2])  # id ['9000798_00_L_001.tif', '9000798_00_R_009.tif']
 
     # for i in range(train_set.__len__()):
-    #     print(len(train_set.__getitem__(i)[0])) #img
-    #     print(train_set.__getitem__(i)[1]) #label
-    #     print(train_set.__getitem__(i)[2]) #filenames
-    #     print(train_set.__getitem__(1)[0][0].shape)
+        # print(len(train_set.__getitem__(i)[0])) #img
+        # print(train_set.__getitem__(i)[1]) #label
+        # print(train_set.__getitem__(i)[2]) #filenames
+        # print(train_set.__getitem__(1)[0][0].shape)
 
-    for batch_idx, (data, labels, id) in enumerate(train_loader):
-        labels = labels.view(labels.shape[0]*labels.shape[1])
-        data = data.view(data.shape[0]*data.shape[1], data.shape[2], data.shape[3], data.shape[4], data.shape[5])
-        print(id)
-        print(labels)
-        print(data.shape)
+    # for batch_idx, (data, labels, id) in enumerate(train_loader):
+    #     labels = labels.view(labels.shape[0]*labels.shape[1])
+    #     data = data.view(data.shape[0]*data.shape[1], data.shape[2], data.shape[3], data.shape[4], data.shape[5])
+    #     print(id)
+    #     print(labels)
+    #     print(data.shape)
 
     # for i in range(len(train_set.__getitem__(1)[0])):
     #     imgs = train_set.__getitem__(1)[0][i]

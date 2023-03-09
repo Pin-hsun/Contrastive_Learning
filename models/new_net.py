@@ -29,7 +29,7 @@ def to_unfreeze(pars):
 
 
 class ResnetFeatures(nn.Module):
-    def __init__(self):
+    def __init__(self, resnet_name, pretrained, fmap_c):
         super(ResnetFeatures, self).__init__()
         self.resnet = getattr(models, resnet_name)(pretrained=pretrained)
         self.resnet.avgpool = nn.Identity()
@@ -37,8 +37,8 @@ class ResnetFeatures(nn.Module):
         self.fmap_c = fmap_c
 
         to_freeze(list(self.resnet.parameters()))
-        #pars = append_parameters([getattr(self.resnet, x)[-1] for x in ['layer4']])
-        #to_unfreeze(pars)
+        pars = append_parameters([getattr(self.resnet, x)[-1] for x in ['layer4']])
+        to_unfreeze(pars)
 
         print_num_of_parameters(self.resnet)
 
@@ -53,10 +53,10 @@ class SiameseNetwork101(nn.Module):
     Modified from: https://hackernoon.com/facial-similarity-with-siamese-networks-in-pytorch-9642aa9db2f7
     Siamese ResNet-101 from Pytorch library
     """
-    def __init__(self):
+    def __init__(self, pretrained):
         super(SiameseNetwork101, self).__init__()
         # note that resnet101 requires 3 input channels, will repeat grayscale image x3
-        self.cnn1 = models.resnet101(pretrained=True)
+        self.cnn1 = models.resnet101(pretrained=pretrained)
         self.cnn1.fc = nn.Linear(2048, 3) # mapping input image to a 3 node output
         to_freeze(list(self.cnn1.parameters()))
         pars = append_parameters([getattr(self.cnn1, x)[-1] for x in ['layer4']])
@@ -85,18 +85,18 @@ class MRPretrained(nn.Module):
         self.features = self.get_encoder(args_m)
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
         if args_m.fuse == 'cat':
-            self.fc = nn.Sequential(nn.Linear(self.fmap_c*23, self.fmap_c), nn.Linear(self.fmap_c, 5))
+            self.fc = nn.Sequential(nn.Linear(self.fmap_c*23, self.fmap_c), nn.Linear(self.fmap_c, 3))
         if args_m.fuse == 'max':
-            self.fc = nn.Sequential(nn.Linear(self.fmap_c, 5))
+            self.fc = nn.Sequential(nn.Linear(self.fmap_c, 3))
 
         self.fuse = args_m.fuse
         self.fc_use = args_m.fc_use
 
     def get_encoder(self, args_m):
         if args_m.backbone =='siamese_resnet101': #set fc_use == false
-            features = SiameseNetwork101()
+            features = SiameseNetwork101(pretrained=args_m.pretrained)
         elif args_m.backbone.startswith('resnet'):
-            features = ResnetFeatures(args_m.backbone, pretrained=args_m.pretrained, fmap_c=self.fmap_c)
+            features = ResnetFeatures(resnet_name=args_m.backbone, pretrained=args_m.pretrained, fmap_c=self.fmap_c)
         elif args_m.backbone == 'SqueezeNet':
             features = getattr(models, args_m.backbone)().features
         else:
